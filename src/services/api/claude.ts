@@ -1836,6 +1836,8 @@ async function* queryModel(
             tool_choice: params.tool_choice,
             temperature: params.temperature,
             max_tokens: params.max_tokens,
+            thinking: params.thinking,
+            effort,
           })
           if (!geminiRequest.contents || geminiRequest.contents.length === 0) {
             throw new Error(
@@ -1881,6 +1883,7 @@ async function* queryModel(
               temperature: params.temperature,
               max_tokens: params.max_tokens,
               thinking: params.thinking,
+              effort,
             })
             if (!responsesRequest.input || responsesRequest.input.length === 0) {
               throw new Error(

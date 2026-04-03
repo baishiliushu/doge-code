@@ -6,6 +6,7 @@ import type {
   BetaToolChoiceTool,
   BetaToolUnion,
 } from '@anthropic-ai/sdk/resources/beta/messages/messages.mjs'
+import type { EffortValue } from 'src/utils/effort.js'
 import {
   contentToText,
   getToolDefinitions,
@@ -57,6 +58,10 @@ type GeminiRequest = {
   generationConfig?: {
     temperature?: number
     maxOutputTokens?: number
+    thinkingConfig?: {
+      includeThoughts?: boolean
+      thinkingBudget?: number
+    }
   }
 }
 
@@ -131,6 +136,15 @@ function mapToolChoice(
   return undefined
 }
 
+function mapEffortToGeminiThinkingBudget(effort?: EffortValue): number | undefined {
+  if (effort === 'none') return 0
+  if (effort === 'low') return 1024
+  if (effort === 'medium') return 4096
+  if (effort === 'high') return 8192
+  if (effort === 'max' || typeof effort === 'number') return 8192
+  return undefined
+}
+
 export function convertAnthropicRequestToGemini(input: {
   model: string
   system?: string | Array<{ type?: string; text?: string }>
@@ -139,6 +153,11 @@ export function convertAnthropicRequestToGemini(input: {
   tool_choice?: BetaToolChoiceAuto | BetaToolChoiceTool
   temperature?: number
   max_tokens?: number
+  thinking?: {
+    type?: 'enabled' | 'disabled' | 'adaptive'
+    budget_tokens?: number
+  }
+  effort?: EffortValue
 }): GeminiRequest {
   const toolNameById = getToolNameById(input.messages)
   const contents: GeminiContent[] = []
@@ -230,6 +249,11 @@ export function convertAnthropicRequestToGemini(input: {
       : input.system
     : ''
 
+  const thinkingBudget = mapEffortToGeminiThinkingBudget(input.effort)
+  const thinkingEnabled =
+    (input.thinking?.type === 'enabled' || input.thinking?.type === 'adaptive') &&
+    thinkingBudget !== 0
+
   return {
     contents,
     ...(systemText.trim()
@@ -248,6 +272,16 @@ export function convertAnthropicRequestToGemini(input: {
     generationConfig: {
       temperature: input.temperature,
       maxOutputTokens: input.max_tokens,
+      ...(thinkingEnabled
+        ? {
+            thinkingConfig: {
+              includeThoughts: true,
+              ...(typeof thinkingBudget === 'number' && thinkingBudget > 0
+                ? { thinkingBudget }
+                : {}),
+            },
+          }
+        : {}),
     },
   }
 }

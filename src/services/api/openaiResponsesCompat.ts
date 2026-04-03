@@ -6,6 +6,7 @@ import type {
   BetaToolChoiceTool,
   BetaToolUnion,
 } from '@anthropic-ai/sdk/resources/beta/messages/messages.mjs'
+import type { EffortValue } from 'src/utils/effort.js'
 import {
   contentToText,
   getToolDefinitions,
@@ -72,6 +73,28 @@ type ToolState = {
   anthropicIndex: number
 }
 
+function mapEffortToResponsesReasoning(
+  effort?: EffortValue,
+): OpenAIResponsesRequest['reasoning'] | undefined {
+  if (effort === 'none') return undefined
+  if (effort === 'low' || effort === 'medium' || effort === 'high') {
+    return {
+      effort,
+      summary: 'auto',
+    }
+  }
+  if (effort === 'max' || typeof effort === 'number') {
+    return {
+      effort: 'high',
+      summary: 'auto',
+    }
+  }
+  return {
+    effort: 'medium',
+    summary: 'auto',
+  }
+}
+
 function getResponsesToolDefinitions(tools?: BetaToolUnion[]): OpenAIResponsesRequest['tools'] {
   const definitions = getToolDefinitions(tools)
   if (!definitions) return undefined
@@ -95,6 +118,7 @@ export function convertAnthropicRequestToOpenAIResponses(input: {
     type?: 'enabled' | 'disabled' | 'adaptive'
     budget_tokens?: number
   }
+  effort?: EffortValue
 }): OpenAIResponsesRequest {
   const configuredModel = process.env.ANTHROPIC_MODEL?.trim()
   const targetModel = configuredModel || input.model
@@ -189,10 +213,9 @@ export function convertAnthropicRequestToOpenAIResponses(input: {
         : {}),
     ...(input.thinking?.type === 'enabled' || input.thinking?.type === 'adaptive'
       ? {
-          reasoning: {
-            effort: 'medium' as const,
-            summary: 'auto' as const,
-          },
+          ...(mapEffortToResponsesReasoning(input.effort)
+            ? { reasoning: mapEffortToResponsesReasoning(input.effort) }
+            : {}),
         }
       : {}),
   }
